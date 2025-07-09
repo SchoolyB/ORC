@@ -89,7 +89,7 @@ Please check back as the project develops for contribution guidelines.
 
 ### Phase 1: Core Foundation
 - [In Progress] Define and implement `.orc` file syntax
-- [ In Progress] Build transpiler (ORC → Odin)
+- [In Progress] Build transpiler (ORC → Odin)
 - [ ] Build compiler (Odin → WASM)
 - [ ] Basic component system
 - [ ] CLI tooling

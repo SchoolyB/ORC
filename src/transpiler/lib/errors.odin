@@ -1,4 +1,5 @@
 package transpiler_lib
+import "core:strings"
 
 LibErrorType::enum{
     NO_ERROR = 0,
@@ -14,19 +15,30 @@ LibError :: struct{
 }
 
 TranspilerErrorType::enum{
-    NO_ERROR = 0,
-    INVALID_ODIN_CODE,
-    INVALID_ORC_CODE,
-    FAILED_TO_PARSE,
-    FAILED_TO_TRANSPILE
+NO_ERR = 0,
+CFF, //cannot find file
+CRF, //cannot read file
+INVLD_FS, //invalid structure
+INVLD_ODIN_CODE, //invalid
+INVLD_ORC_CODE, //invalid
+FTP, //failed to parse
+FTT, //failed to transpile
+FCVF, //failed to creat validation file
+FTV //failed to validate
+
 }
 
 TranspilerErrorMessage:=[TranspilerErrorType]string {
-    .NO_ERROR = "No Transpiler Error ",
-    .INVALID_ODIN_CODE = "Invalid Odin code found in .orc file",
-    .INVALID_ORC_CODE = "Invalid Orc code found in .orc file",
-    .FAILED_TO_PARSE = "Failed tp parse .orc file",
-    .FAILED_TO_TRANSPILE = "Failed to transpile .orc file into valid Odin code"
+    .NO_ERR = "No Transpiler Error ",
+    .CFF = "Cannot find .Orc file",
+    .CRF = "Cannot read Orc file",
+    .INVLD_FS = "",
+    .INVLD_ODIN_CODE = "Invalid Odin code found in .orc file",
+    .INVLD_ORC_CODE = "Invalid Orc code found in .orc file",
+    .FTP = "Failed to parse .orc file",
+    .FTT = "Failed to transpile .orc file into valid Odin code",
+    .FCVF = "",
+    .FTV = ""
 }
 
 TranspilerError :: struct {
@@ -34,6 +46,10 @@ TranspilerError :: struct {
     TranspilerErrorMessage: string
 }
 
-make_error ::proc() -> ^TranspilerError{
-    return new(TranspilerError)
+make_error ::proc(type:TranspilerErrorType, msg:string) -> ^TranspilerError{
+    error:= new(TranspilerError)
+    error.type = type
+    error.TranspilerErrorMessage = strings.clone(msg)
+
+    return error
 }

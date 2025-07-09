@@ -10,10 +10,10 @@ ParsedOrcFile::struct {
     odinEndBoundary:string, //@(Odin_End)
     odinEndBoundaryExists: bool,
 
-    orcOpenTag: string, //<orc>
+    orcOpenTag: string, //<Orc>
     containsOrcOpenTag: bool,
     orcComponents: [dynamic]OrcComponent,
-    orcClosingTag: string, //</orc>
+    orcClosingTag: string, //</Orc>
     containsOrcCloseTage: bool
 }
 
@@ -22,18 +22,23 @@ OdinCodeContent:: struct{
     //Will most likely need to add more to this for futher parsing
 }
 
+
 OrcComponent::struct{
     name: string,
+    rawContent: string, //the HTML inside the component as a single string, is then parsed to HTML_Element type
     attrubutes: map[string]string,
-    content: string,
     hasOpeningTag:bool,
     hasClosingTag: bool,
     isValid: bool,
-    subOrcComponents: [dynamic]OrcComponent
+    htmlElements: [dynamic]HTML_Element,
+    subOrcComponents: [dynamic]OrcComponent,
 }
 
-
-
-
-
-
+HTML_Element :: struct {
+    tagName: string,
+    attributes: [dynamic]map[string]string, //An element can have multiple attributes e.g class, id, href, etc...
+    content: map[string]string, //The contnent to display in this element
+    hasOpeningTag, hasClosingTag: bool,
+    parentElements:[dynamic]HTML_Element,
+    childElements:[dynamic]HTML_Element
+}

@@ -17,10 +17,10 @@ import "core:c/libc"
 //Parse the content of an ORC file and appends to a ^L.ParsedOrcFile struct
 @(require_results)
 parse_orc_file:: proc(path:string) -> (^L.ParsedOrcFile, ^L.TranspilerError){
+    using fmt
     using L
 
-    data, readErr:= read_file(path); if readErr!= nil do return nil, new(TranspilerError)
-
+    data, readErr:= read_file(path); if readErr!= nil do return nil, make_error(.CRF, tprintf("Cannot read file %s", path))
     parsedOrcFile:= new(ParsedOrcFile)
     parsedOrcFile.path = path
     splitPath:= strings.split(path, ".orc")
@@ -47,7 +47,7 @@ parse_orc_file:: proc(path:string) -> (^L.ParsedOrcFile, ^L.TranspilerError){
             startOffset := odinStartIndex + len(ODIN_START_TAG)
             odinContent := strings.trim_space(content[startOffset:odinEndIndex])
             parsedOrcFile.odinCodeContent.rawContent = strings.clone(odinContent)
-        }
+        } else do return parsedOrcFile, make_error(.INVLD_FS, tprintf("Invalid file structure detected in file: %s", parsedOrcFile.fileName))
     }
 
     // Parse ORC section
@@ -56,7 +56,20 @@ parse_orc_file:: proc(path:string) -> (^L.ParsedOrcFile, ^L.TranspilerError){
 
     if orcStartIndex >= 0 {
         parsedOrcFile.containsOrcOpenTag = true
-        parsedOrcFile.orcOpenTag = ORC_OPEN_TAG
+
+        // Extract the complete opening tag line (e.g., <Orc = "signUp">)
+        lineStart := orcStartIndex
+        for lineStart > 0 && content[lineStart-1] != '\n' {
+            lineStart -= 1
+        }
+
+        lineEnd := orcStartIndex
+        for lineEnd < len(content) && content[lineEnd] != '\n' {
+            lineEnd += 1
+        }
+
+        fullOpeningTag := strings.trim_space(content[lineStart:lineEnd])
+        parsedOrcFile.orcOpenTag = strings.clone(fullOpeningTag)
 
         if orcCloseIndex >= 0 {
             parsedOrcFile.containsOrcCloseTage = true
@@ -79,14 +92,24 @@ parse_orc_components :: proc(content: string, components: ^[dynamic]L.OrcCompone
 
     for line in lines {
         trimmed := strings.trim_space(line)
-        if len(trimmed) > 0 && !strings.has_prefix(trimmed, "//") {
+        if len(trimmed) > 0 && !strings.has_prefix(trimmed, "//") { //if not comment out with //
             component := L.OrcComponent{
-                content = trimmed,
                 isValid = true,
             }
+
+            //Get the component name
+            component.name = strings.trim_right(lines[0],">")
             append(components, component)
         }
     }
+}
+
+
+parse_html::proc(orcComponent:L.OrcComponent) -> L.OrcComponent{
+
+
+
+
 }
 
 // Validate the parsed ORC file for syntax and structural errors
@@ -96,19 +119,19 @@ validate_orc_file :: proc(parsedFile: ^L.ParsedOrcFile) -> ^L.TranspilerError {
 
     // Validate basic structure
     if !parsedFile.odinStartBoundaryExists {
-        return create_error("Missing Odin start boundary '@(Odin_Start)'")
+        return make_error(.INVLD_FS,"Missing Odin start boundary '@(Odin_Start)'")
     }
 
     if !parsedFile.odinEndBoundaryExists {
-        return create_error("Missing Odin end boundary '@(Odin_End)'")
+        return make_error(.INVLD_FS,"Missing Odin end boundary '@(Odin_End)'")
     }
 
     if !parsedFile.containsOrcOpenTag {
-        return create_error("Missing ORC open tag '<Orc>'")
+        return make_error(.INVLD_FS,"Missing ORC open tag '<Orc>'")
     }
 
     if !parsedFile.containsOrcCloseTage {
-        return create_error("Missing ORC close tag '</Orc>'")
+        return make_error(.INVLD_FS,"Missing ORC close tag '</Orc>'")
     }
 
     // Validate Odin code syntax
@@ -137,12 +160,11 @@ validate_odin_syntax :: proc(parsedFile: ^L.ParsedOrcFile) -> ^L.TranspilerError
        // Wrap the Odin code
        wrappedCode := fmt.aprintf("package %s\n\n%s",parsedFile.fileName, odinCode)
 
-
        libc.system(strings.clone_to_cstring("mkdir output"))
 
        // Write to temp file
        if !os.write_entire_file(tempFilePath, transmute([]u8)wrappedCode) {
-           return create_error("Failed to create temporary validation file")
+           return make_error(.FCVF,"Failed to create temporary validation file")
        }
 
        //Try to compile Odin code
@@ -155,7 +177,7 @@ validate_odin_syntax :: proc(parsedFile: ^L.ParsedOrcFile) -> ^L.TranspilerError
        result := libc.system(cmdAsCString)
        if result != 0 {
            fmt.println("Failed to validate Odin Code")
-           return create_error("Odin code validation failed")
+           return make_error(.FTV, "Odin code validation failed")
        }
 
        fmt.printfln("Successfully validated Odin Code in file: %s", parsedFile.fileName)
@@ -168,23 +190,15 @@ validate_orc_components :: proc(components: ^[dynamic]L.OrcComponent) -> ^L.Tran
     using L
 
     for component in components {
-        if len(component.content) == 0 {
-            return create_error("Empty ORC component found")
+        if len(component.name) == 0 {
+            return make_error(.INVLD_FS, "Orc Components must have names")
         }
 
-        // Basic HTML-like tag validation
-        if strings.has_prefix(component.content, "<") && !strings.has_suffix(component.content, ">") {
-            return create_error("Invalid ORC tag format")
+        if strings.has_prefix(component.name, "<") && !strings.has_suffix(component.name, ">") {
+            return make_error(.FTV,"Invalid ORC tag format")
         }
+
     }
-
     return nil
 }
 
-// Helper function to create validation errors
-create_error :: proc(message: string) -> ^L.TranspilerError {
-    error := new(L.TranspilerError)
-    error.type = L.TranspilerErrorType.FAILED_TO_PARSE
-    error.TranspilerErrorMessage = message
-    return error
-}
