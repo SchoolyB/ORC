@@ -99,18 +99,116 @@ parse_orc_components :: proc(content: string, components: ^[dynamic]L.OrcCompone
 
             //Get the component name
             component.name = strings.trim_right(lines[0],">")
+            parse_html_content(content, &component.htmlElements)
             append(components, component)
         }
     }
 }
 
+parse_html_content ::proc(content:string, htmlElements:^[dynamic]L.HTML_Element){
+    lines:= strings.split(content, "\n")
+    defer delete(lines)
 
-parse_html::proc(orcComponent:L.OrcComponent) -> L.OrcComponent{
-
-
-
-
+    for line in lines{
+        trimmed:= strings.trim_space(line)
+        if len(trimmed) > 0  && !strings.has_prefix(trimmed, "//") {//if not commented
+            if element:= parse_html_element(trimmed); element.tagName != ""{
+                append(htmlElements, element)
+            }
+        }
+    }
 }
+
+parse_html_element::proc(line:string) -> L.HTML_Element{
+    element := L.HTML_Element{
+            content= make(map[string]string)
+    }
+
+    //get the tags name
+    if strings.has_prefix(line,"</"){
+        tagEnd:= strings.index(line, " ")
+        if tagEnd == -1 {
+            tagEnd = len(line)
+        }
+
+        element.tagName = line[2:tagEnd]
+        element.hasOpeningTag = true
+
+        parse_html_attributes(line, &element)
+
+        if strings.has_suffix(strings.trim_space(line), ">"){
+            element.hasClosingTag = true
+        }
+    }
+
+    return element
+}
+
+
+//TODO: should prob return L.TranspilerError
+parse_html_attributes :: proc(line:string, element:^L.HTML_Element){
+    spaceIndex:= strings.index(line, " ")
+    if spaceIndex == -1{
+        return
+    }
+
+    // every byte to the right +1 of the space index
+    attributeSection:= line[spaceIndex + 1:]
+
+    attributeArray:=strings.split(attributeSection,  " ")
+    defer delete(attributeArray)
+
+    for attribute in attributeArray {
+        if strings.contains (attribute, "="){
+            keyValuePair:= strings.split(attribute, "=")
+            defer delete(keyValuePair)
+
+            //If attribute is proper len store to map
+            if len(keyValuePair) == 2{
+                key := strings.trim_space(keyValuePair[0])
+                value := strings.trim_space(keyValuePair[1])
+                attributeMap:=make(map[string]string)
+
+                attributeMap[key] = strings.clone(key)
+                attributeMap[value] =strings.clone(value)
+
+                if key == "content"{
+                    element.content[key] = strings.clone(value)
+                }
+
+                if !attribute_names_are_valid(attributeMap){
+                    //TODO RETURN ERROR
+                    fmt.println("Some Attributes in your HTML elements are invalid ")
+                }
+
+            } else{
+                break
+                // TODO return error????
+            }
+        }
+    }
+}
+
+//helper to verify that all evaluiated attributed names are valid and not some made up slop
+@(require_results)
+attribute_names_are_valid :: proc(attributes: map[string]string)-> bool{
+    allValid:= true
+    validAttribute:=[]string{"class","src","conent"}
+    for allValid{
+        for key, i in attributes{
+            for attr in validAttribute {
+                if key != attr{
+                    allValid = false
+                }
+            }
+        }
+    }
+
+    return allValid
+}
+
+
+
 
 // Validate the parsed ORC file for syntax and structural errors
 @(require_results)
